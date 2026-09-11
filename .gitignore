@@ -1,0 +1,45 @@
+# =========================
+# Environnement virtuel
+# =========================
+venv/
+
+# =========================
+# Variables d'environnement / secrets
+# =========================
+.env
+
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# =========================
+# Django
+# =========================
+*.log
+db.sqlite3
+db.sqlite3-journal
+
+# Fichiers de migration compilés Python
+**/__pycache__/
+
+# =========================
+# Fichiers statiques / médias générés
+# =========================
+staticfiles/
+media/
+
+# =========================
+# IDE / éditeurs
+# =========================
+.vscode/
+.idea/
+
+# =========================
+# Système
+# =========================
+.DS_Store
+Thumbs.db
