@@ -1,3 +1,5 @@
 from django.contrib import admin
+from .models import DemandeChargement, Mission
 
-# Register your models here.
+admin.site.register(DemandeChargement)
+admin.site.register(Mission)
