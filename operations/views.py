@@ -1,4 +1,5 @@
 import datetime
+from django.utils.dateparse import parse_datetime
 from django.utils import timezone
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
@@ -7,6 +8,8 @@ from django.db.models import Q
 from comptes.permissions import EstResponsable, EstAgent
 from flotte.models import Vehicule
 from .models import DemandeChargement, Mission
+from flotte.serializers import AgentListSerializer
+from flotte.serializers import VehiculeSerializer
 from .serializers import (
     DemandeChargementListSerializer, DemandeChargementCreateSerializer, DemandeChargementDetailSerializer,
     MissionListSerializer, MissionDetailSerializer, MissionCreateSerializer,
@@ -132,6 +135,114 @@ class DemandeChargementViewSet(viewsets.ModelViewSet):
             DemandeChargementDetailSerializer(demande).data,
             status=status.HTTP_200_OK,
         )
+
+    @action(detail=True, methods=["get"], url_path="ressources-disponibles")
+    def ressources_disponibles(self, request, pk=None):
+        """
+        1. L'utilisateur ouvre "Créer une mission" depuis le détail d'une demande
+        2. Les sélecteurs Véhicule et Agent sont VIDES et DÉSACTIVÉS au départ
+        3. L'utilisateur saisit "Date et heure de fin prévue"
+        4. Dès que ce champ est rempli (ou à chaque modification), le frontend appelle :
+        GET /demandes-chargement/{id}/ressources-disponibles/?date_fin_prevue=...
+        5. La réponse remplit dynamiquement les deux sélecteurs — l'utilisateur ne voit
+        QUE des véhicules/agents réellement libres sur cette période précise
+        6. À la soumission, POST /missions/ avec ces IDs — comme la même logique de
+        chevauchement a déjà filtré la liste, le risque de rejet à la création devient
+        quasi nul (sauf cas de double-clic simultané très rare, mais la validation
+        backend reste le vrai garde-fou final, jamais uniquement le frontend)
+        """
+        demande = self.get_object()
+        # get_object() applique automatiquement get_queryset() + les permissions :
+        # si cette demande n'appartient pas au Responsable connecté, 404 direct
+
+        # --- Récupération et validation du paramètre reçu ---
+        date_fin_str = request.query_params.get("date_fin_prevue")
+        # query_params : car c'est un paramètre dans l'URL (?date_fin_prevue=...)
+
+        if not date_fin_str:
+            return Response(
+                {"detail": "Le paramètre date_fin_prevue est requis."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        date_fin_prevue = parse_datetime(date_fin_str)
+        # parse_datetime() : convertit la chaîne reçue (ex. "2026-09-20T14:00:00Z")
+        # en véritable objet datetime Python — renvoie None si le format est invalide,
+        # d'où la vérification juste après
+        if date_fin_prevue is None:
+            return Response(
+                {"detail": "Format de date invalide (attendu : ISO 8601)."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # --- Calcul du début de la période, à partir de la demande ---
+        debut_prevu = timezone.make_aware(
+            datetime.datetime.combine(demande.date_chargement, demande.heure_chargement)
+        )
+
+        if date_fin_prevue <= debut_prevu:
+            # Vérification de cohérence avant même de chercher les ressources :
+            # inutile de calculer quoi que ce soit si la date est absurde
+            return Response(
+                {"detail": "La date de fin doit être après la date de chargement."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        responsable = demande.responsable
+        # On récupère le Responsable via la demande elle-même 
+
+        # --- Véhicules libres sur cette période ---
+
+        vehicules_candidats = Vehicule.objects.filter(
+            responsable=responsable
+        ).exclude(statut=Vehicule.Statut.EN_PANNE)
+        # Premier filtre simple : tous les véhicules de l'entreprise, SAUF ceux en
+        # panne — un véhicule en panne n'est jamais proposable, quelle que soit la
+        # période demandée
+
+        vehicules_libres = [
+            v for v in vehicules_candidats
+            if not any(
+                m.chevauche(debut_prevu, date_fin_prevue)
+                for m in v.missions.filter(statut__in=[Mission.Statut.PREVU, Mission.Statut.EN_COURS])
+            )
+        ]
+        # - Pour CHAQUE véhicule candidat (v)...
+        # - ...on regarde TOUTES ses missions actives (celles PREVU ou EN_COURS)
+        # - ...et on vérifie si AU MOINS UNE d'entre elles chevauche la période
+        #   demandée (any(...) s'arrête dès qu'il en trouve une, pas besoin de
+        #   toutes les vérifier)
+        # - not any(...) = "aucune de ses missions ne chevauche" = ce véhicule
+        #   est libre sur cette période → on le garde dans la liste
+        #
+        # C'est exactement le même appel à mission.chevauche(...) que dans
+        # MissionCreateSerializer.validate() — un seul endroit où cette logique
+        # est définie (sur le modèle Mission)
+
+        # --- Agents libres sur cette période : même principe, appliqué aux agents ---
+        from comptes.models import Agent
+        # Import placé ici (dans la méthode) plutôt qu'en haut du fichier, pour
+        # éviter un import circulaire entre operations/ et comptes/ si jamais
+        # comptes/models.py importait un jour quelque chose depuis operations/ —
+
+        agents_candidats = Agent.objects.filter(responsable=responsable).select_related("utilisateur")
+        # select_related("utilisateur") : précharge le CustomUser lié en une seule
+
+        agents_libres = [
+            a for a in agents_candidats
+            if not any(
+                m.chevauche(debut_prevu, date_fin_prevue)
+                for m in a.missions.filter(statut__in=[Mission.Statut.PREVU, Mission.Statut.EN_COURS])
+            )
+        ]
+
+        return Response({
+            "vehicules": VehiculeSerializer(vehicules_libres, many=True).data,
+            "agents": AgentListSerializer(agents_libres, many=True).data,
+        })
+        # On renvoie les DEUX listes dans une seule réponse — le frontend n'a besoin
+        # que d'UN SEUL appel à cet endpoint pour peupler les deux sélecteurs
+        # (véhicule ET agent) d'un coup, plutôt que deux requêtes séparées
 
 class MissionViewSet(viewsets.ModelViewSet):
     http_method_names = ["get", "post"]
