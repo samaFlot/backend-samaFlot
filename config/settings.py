@@ -12,7 +12,17 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 import os
+from datetime import timedelta
 from dotenv import load_dotenv
+from decouple import config
+
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = "smtp.gmail.com"
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = config("EMAIL_HOST_USER")
+EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD")
+DEFAULT_FROM_EMAIL = f"SamaFlot <{EMAIL_HOST_USER}>"
 
 load_dotenv()
 
@@ -41,7 +51,32 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    "rest_framework",
+    'comptes',
+    "flotte",
+    "operations",
 ]
+
+REST_FRAMEWORK = {
+    #Quand une requête arrive avec un JWT, django utilise ce JWT pour déterminer qui est l'utilisateur
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ),
+    #Par défaut, seules les personnes authentifiées peuvent accéder aux API.
+    "DEFAULT_PERMISSION_CLASSES": (
+        "rest_framework.permissions.IsAuthenticated",
+    ),
+}
+#SimpleJWT est une bibliothèque qui s'intègre à DRF pour gérer l'authentification avec des tokens JWT.
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(hours=8),   # durée d'une session active
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=30),  # le refresh token peut être utilisé pour renouveler l'accès pendant sa durée de validité.
+    "ROTATE_REFRESH_TOKENS": True,
+}
+
+#Django utilise par défaut son propre modèle utilisateur et nous avons décidé de créer notre propre modèle
+#Donc on dt a django qu'À partir de maintenant, le modèle utilisateur de notre projet est CustomUser situé dans l'application comptes
+AUTH_USER_MODEL = "comptes.CustomUser"
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
