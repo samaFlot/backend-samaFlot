@@ -24,7 +24,9 @@ db.sqlite3
 db.sqlite3-journal
 
 # Fichiers de migration compilés Python
-**/__pycache__/
+__pycache__/
+*.py[cod]
+*$py.class
 
 # =========================
 # Fichiers statiques / médias générés
