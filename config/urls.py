@@ -22,4 +22,5 @@ urlpatterns = [
     path("api/comptes/", include("comptes.urls")),
     path("api/flotte/", include("flotte.urls")),
     path("api/operations/", include("operations.urls")),
+    path("api/geolocalisation/", include("geolocalisation.urls")),
 ]

@@ -55,6 +55,7 @@ INSTALLED_APPS = [
     'comptes',
     "flotte",
     "operations",
+    "geolocalisation",
 ]
 
 REST_FRAMEWORK = {
