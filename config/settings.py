@@ -39,7 +39,21 @@ SECRET_KEY = 'django-insecure-v(5v%8o755+e_36^+=$84z$@(mxr()zy01t-6z(2*o2q03ac(#
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+#ALLOWED_HOSTS indique à Django quels noms d’hôte/adresses il accepte dans les requêtes HTTP
+ALLOWED_HOSTS = [
+    #permet à ton propre ordinateur d'accéder à Django
+    '127.0.0.1',
+    'localhost',
+    #permet aux autres appareils de ton réseau local(ensemble d’appareils connectés au même réseau, généralement le même Wi-Fi ou le même routeur), notamment ton téléphone, d'accéder à Django
+    '192.168.1.180',
+    '192.168.1.16',
+]
+#l'adresse IP locale actuelle de ton PC sur ton Wi-Fi obtenu avec ip addr show wlo1
+#après un changement de Wi-Fi, il faut généralement
+#1. Vérifier la nouvelle IP du PC
+#2. Modifier l'URL de l'API dans React Native
+#3. Modifier ALLOWED_HOSTS dans Django si nécessaire
+#4. Redémarrer Django si nécessaire
 
 
 # Application definition

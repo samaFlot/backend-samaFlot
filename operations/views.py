@@ -251,7 +251,7 @@ class MissionViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         # Appelée par DRF avant chaque requête — permet des permissions différentes
         # selon self.action, plutôt qu'une seule règle pour tout le ViewSet
-        if self.action in ["terminer", "demarrer"]:
+        if self.action in ["list", "retrieve", "demarrer", "terminer"]:
             return [EstAgent()]
             # Seul un Agent peut démarrer/terminer une mission (la sienne, vérifié plus bas)
         return [EstResponsable()]
@@ -297,6 +297,7 @@ class MissionViewSet(viewsets.ModelViewSet):
     def demarrer(self, request, pk=None):
         mission = self.get_object()
 
+        # Vérifie que la mission appartient bien à l'Agent connecté
         if mission.agent.utilisateur_id != request.user.id:
             # Sécurité supplémentaire, même si get_queryset() filtre déjà par agent
             # connecté : ne jamais compter uniquement sur le filtrage de liste pour
@@ -309,6 +310,25 @@ class MissionViewSet(viewsets.ModelViewSet):
             # Empêche de démarrer une mission déjà en cours, terminée ou annulée
             return Response(
                 {"detail": "Cette mission n'est pas au statut Prévu."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Vérifie que l'Agent n'a pas déjà une mission en cours.
+        # Un Agent ne peut avoir qu'une seule mission EN_COURS à la fois.
+        mission_en_cours = Mission.objects.filter(
+            agent=mission.agent,
+            statut=Mission.Statut.EN_COURS,
+        ).exists()
+
+        # Si une mission est déjà en cours, on bloque le démarrage.
+        if mission_en_cours:
+            return Response(
+                {
+                    "detail": (
+                        "Vous avez déjà une mission en cours. "
+                        "Terminez-la avant de démarrer une nouvelle mission."
+                    )
+                },
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
