@@ -59,8 +59,8 @@ class Mission(models.Model):
     demande_chargement = models.ForeignKey(
         DemandeChargement, on_delete=models.CASCADE, related_name="missions"
     )
-    vehicule = models.ForeignKey(Vehicule, on_delete=models.SET_NULL, related_name="missions",null=True,blank=True)
-    agent = models.ForeignKey(Agent, on_delete=models.SET_NULL, related_name="missions",null=True,blank=True)
+    vehicule = models.ForeignKey(Vehicule, on_delete=models.PROTECT, related_name="missions",null=True,blank=True)
+    agent = models.ForeignKey(Agent, on_delete=models.PROTECT, related_name="missions",null=True,blank=True)
     statut = models.CharField(max_length=20, choices=Statut.choices, default=Statut.PREVU)
     date_fin_prevue = models.DateTimeField()
     date_creation = models.DateTimeField(auto_now_add=True)

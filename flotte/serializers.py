@@ -54,18 +54,38 @@ class AgentListSerializer(serializers.ModelSerializer):
     prenom = serializers.CharField(source="utilisateur.first_name")
     email = serializers.EmailField(source="utilisateur.email")
     telephone = serializers.CharField(source="utilisateur.telephone")
+    adresse = serializers.CharField(source="utilisateur.adresse")
+    photo = serializers.ImageField(source="utilisateur.photo", read_only=True)
 
     class Meta:
         model = Agent
         #Quand j'affiche un Agent, je veux envoyer uniquement ces informations
-        fields = ["id", "nom", "prenom", "email", "telephone", "disponible"]
+        fields = ["id", "nom", "prenom", "email", "telephone","adresse", "photo", "disponible","numero_permis","categorie_permis"]
 
 
 class AgentCreateSerializer(serializers.Serializer):
+    numero_permis = serializers.CharField(
+    max_length=100,
+    required=False,
+    allow_blank=True,
+    allow_null=True
+    )
+
+    categorie_permis = serializers.CharField(
+        max_length=20,
+        required=False,
+        allow_blank=True,
+        allow_null=True
+    )
     nom = serializers.CharField(max_length=150)
     prenom = serializers.CharField(max_length=150)
     telephone = serializers.CharField(max_length=20)
+    adresse = serializers.CharField(max_length=255)
     email = serializers.EmailField()
+    photo = serializers.ImageField(
+        required=False,
+        allow_null=True
+    )
     # pas de champ mot_de_passe : généré automatiquement et envoyé par email
 
     def validate_email(self, value):
@@ -79,40 +99,97 @@ class AgentCreateSerializer(serializers.Serializer):
         responsable = self.context["responsable"]
         mot_de_passe = generer_mot_de_passe()
 
+        photo = validated_data.get("photo")
+
         user = CustomUser.objects.create_user(
             email=validated_data["email"],
             password=mot_de_passe,
             first_name=validated_data["prenom"],
             last_name=validated_data["nom"],
             telephone=validated_data["telephone"],
+            adresse=validated_data["adresse"],
             role=CustomUser.Role.AGENT,
         )
-        agent = Agent.objects.create(utilisateur=user, responsable=responsable)
+
+        if photo:
+            user.photo = photo
+            user.save()
+
+        agent = Agent.objects.create(
+            utilisateur=user,
+            responsable=responsable,
+            numero_permis=validated_data.get("numero_permis"),
+            categorie_permis=validated_data.get("categorie_permis"),
+            )
 
         envoyer_identifiants(user.email, validated_data["prenom"], mot_de_passe)
         return agent
 
 #On utilise Serializer simple parce que les informations à modifier se trouvent dans CustomUser, et non directement dans le modèle Agent
 class AgentUpdateSerializer(serializers.Serializer):
+    numero_permis = serializers.CharField(
+    max_length=100,
+    required=False,
+    allow_blank=True,
+    allow_null=True
+)
+
+    categorie_permis = serializers.CharField(
+        max_length=20,
+        required=False,
+        allow_blank=True,
+        allow_null=True
+    )
     nom = serializers.CharField(max_length=150, required=False)
     prenom = serializers.CharField(max_length=150, required=False)
     telephone = serializers.CharField(max_length=20, required=False)
+    adresse = serializers.CharField(max_length=255, required=False)
     email = serializers.EmailField(required=False)
+    photo = serializers.ImageField(
+        required=False,
+        allow_null=True
+    )
 
     def update(self, instance, validated_data):
         #Récupérer le CustomUser
         user = instance.utilisateur
+
+        photo = validated_data.get("photo")
+
+        ## Modifie les champs qui appartiennent à CustomUser.
         for champ, attr in [
             ("nom", "last_name"),
             ("prenom", "first_name"),
             ("telephone", "telephone"),
+            ("adresse", "adresse"),
             ("email", "email"),
         ]:
             if champ in validated_data:
                 #setattr sert a modifier un attribut d'un objet.
                 # on dit: Dans user, mets la nouvelle valeur dans le champ indiqué par attr
                 setattr(user, attr, validated_data[champ])
+
+        if photo is not None:
+            user.photo = photo
+
         #on sauvegarde
         user.save()
+
+        # Modifie les champs qui appartiennent directement à Agent.
+        for champ in [
+            "numero_permis",
+            "categorie_permis",
+        ]:
+            if champ in validated_data:
+                # Modifie le champ correspondant de l'Agent.
+                #ex: instance.numero_permis = "SN123456"
+                setattr(
+                    instance,
+                    champ,
+                    validated_data[champ]
+                )
+
+        # Sauvegarde les modifications de l'Agent.
+        instance.save()
         #on retourne l'utilisateur modifier
         return instance

@@ -1,8 +1,12 @@
 import datetime
+import os
+import hmac
+from comptes.models import Responsable
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.utils.dateparse import parse_datetime
 from django.utils import timezone
 from rest_framework import viewsets, status
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from django.db.models import Q
 from comptes.permissions import EstResponsable, EstAgent
@@ -249,9 +253,14 @@ class MissionViewSet(viewsets.ModelViewSet):
     # Pas de permission_classes fixe : elle varie selon l'action (voir get_permissions)
 
     def get_permissions(self):
+        # L'Agent et le Responsable peuvent
+        # consulter la liste et le détail des missions.
+        if self.action in ["list", "retrieve"]:
+            return [IsAuthenticated()]
+        
         # Appelée par DRF avant chaque requête — permet des permissions différentes
         # selon self.action, plutôt qu'une seule règle pour tout le ViewSet
-        if self.action in ["list", "retrieve", "demarrer", "terminer"]:
+        if self.action in ["demarrer", "terminer"]:
             return [EstAgent()]
             # Seul un Agent peut démarrer/terminer une mission (la sienne, vérifié plus bas)
         return [EstResponsable()]
@@ -439,3 +448,56 @@ class MissionViewSet(viewsets.ModelViewSet):
             MissionDetailSerializer(mission).data,
             status=status.HTTP_200_OK,
         )
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def creer_demande_depuis_n8n(request):
+    # Secret configuré dans Django
+    secret_attendu = os.getenv("N8N_WEBHOOK_SECRET")
+
+    # Secret envoyé par n8n
+    secret_recu = request.headers.get("X-N8N-Secret")
+
+    # Vérification de sécurité
+    if not secret_attendu or not secret_recu:
+        return Response(
+            {"detail": "Non autorisé."},
+            status=status.HTTP_401_UNAUTHORIZED,
+        )
+
+    if not hmac.compare_digest(secret_recu, secret_attendu):
+        return Response(
+            {"detail": "Non autorisé."},
+            status=status.HTTP_401_UNAUTHORIZED,
+        )
+
+    # Récupérer l'identifiant du Responsable
+    responsable_id = request.data.get("responsable")
+
+    if not responsable_id:
+        return Response(
+            {"detail": "Le champ responsable est obligatoire."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # Vérifier que le Responsable existe
+    responsable = Responsable.objects.filter(id=responsable_id).first()
+
+    if not responsable:
+        return Response(
+            {"detail": "Responsable introuvable."},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+
+    # Valider les données de la demande
+    serializer = DemandeChargementCreateSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+
+    # Créer la demande avec le Responsable trouvé
+    demande = serializer.save(responsable=responsable)
+
+    return Response(
+        DemandeChargementDetailSerializer(demande).data,
+        status=status.HTTP_201_CREATED,
+    )
