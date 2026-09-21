@@ -25,6 +25,7 @@ urlpatterns = [
     path("api/flotte/", include("flotte.urls")),
     path("api/operations/", include("operations.urls")),
     path("api/geolocalisation/", include("geolocalisation.urls")),
+    path("api/contact/", include("contact.urls")),
 ]
 
 #permet à Django de servir les images pendant le développement
