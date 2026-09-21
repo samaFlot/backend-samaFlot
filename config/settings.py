@@ -77,6 +77,7 @@ INSTALLED_APPS = [
     "operations",
     "geolocalisation",
     "corsheaders",
+    "contact",
 ]
 
 REST_FRAMEWORK = {
