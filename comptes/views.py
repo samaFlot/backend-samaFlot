@@ -3,7 +3,8 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework.generics import RetrieveUpdateAPIView
 from rest_framework.permissions import IsAuthenticated
 from .serializers import CustomTokenObtainPairSerializer, UserProfileSerializer
-
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -11,8 +12,9 @@ from django.db.models import Q
 from .models import Responsable
 from .permissions import EstAdmin
 from .utils import generer_mot_de_passe, envoyer_identifiants
+from rest_framework.views import APIView
 from .serializers import (
-    ResponsableListSerializer, ResponsableCreateSerializer, ResponsableDetailSerializer,
+    ResponsableListSerializer, ResponsableCreateSerializer, ResponsableDetailSerializer, ChangePasswordSerializer,ResponsableUpdateSerializer
 )
 
 
@@ -29,16 +31,75 @@ class ProfilView(RetrieveUpdateAPIView):
         return self.request.user
 
 
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def responsable_par_email(request):
+    # Récupérer l'email envoyé dans l'URL
+    email = request.query_params.get("email")
+
+    # Vérifier que l'email a bien été fourni
+    if not email:
+        return Response(
+            {"detail": "Le paramètre email est obligatoire."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # Chercher le Responsable à partir de l'email
+    responsable = (
+        Responsable.objects
+        .select_related("utilisateur")
+        .filter(utilisateur__email__iexact=email)
+        .first()
+    )
+
+    # Aucun responsable trouvé
+    if not responsable:
+        return Response(
+            {"detail": "Aucun responsable trouvé avec cet email."},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+
+    # Retourner les informations nécessaires à n8n
+    return Response(
+        {
+            "id": responsable.id,
+            "email": responsable.utilisateur.email,
+            "nom_entreprise": responsable.nom_entreprise,
+        },
+        status=status.HTTP_200_OK,
+    )
+
+class ChangePasswordView(APIView):
+    # Seul un utilisateur connecté peut changer son mot de passe
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = ChangePasswordSerializer(
+            data=request.data,
+            context={"request": request},
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        return Response(
+            {"detail": "Mot de passe modifié avec succès."},
+            status=status.HTTP_200_OK,
+        )
+
+
+
 
 class ResponsableViewSet(viewsets.ModelViewSet):
     permission_classes = [EstAdmin]
     #Récupérer les responsables + leur utilisateur associé, puis les classer du plus récemment créé au plus ancien
     queryset = Responsable.objects.select_related("utilisateur").order_by("-utilisateur__date_joined")
-    http_method_names = ["get", "post"]  # on bloque PUT/PATCH/DELETE : pas prévus sur ce modèle
+    http_method_names = ["get", "post", "put"]  # on bloque DELETE : pas prévus sur ce modèle
 
     def get_serializer_class(self):
         if self.action == "create":
             return ResponsableCreateSerializer
+        elif self.action == "update":
+            return ResponsableUpdateSerializer
         elif self.action == "retrieve":
             return ResponsableDetailSerializer
         return ResponsableListSerializer
@@ -57,6 +118,17 @@ class ResponsableViewSet(viewsets.ModelViewSet):
         # Prépare les informations HTTP supplémentaires à mettre dans la réponse après une création réussie
         headers = self.get_success_headers(reponse_serializer.data)
         return Response(reponse_serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+    def update(self, request, *args, **kwargs):
+        responsable = self.get_object()
+
+        serializer = self.get_serializer(responsable, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        responsable = serializer.save()
+
+        # On renvoie le responsable modifié
+        sortie = ResponsableDetailSerializer(responsable)
+        return Response(sortie.data)
 
     #Cette méthode sert à récupérer la liste des Responsables en appliquant éventuellement des filtres.
     #Django appelle cette méthode quand il a besoin de récupérer les Responsables.

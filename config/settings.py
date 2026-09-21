@@ -47,6 +47,8 @@ ALLOWED_HOSTS = [
     #permet aux autres appareils de ton réseau local(ensemble d’appareils connectés au même réseau, généralement le même Wi-Fi ou le même routeur), notamment ton téléphone, d'accéder à Django
     '192.168.1.180',
     '192.168.1.16',
+    #permet a n8n de pouvoir appeler django
+    "host.docker.internal",
 ]
 #l'adresse IP locale actuelle de ton PC sur ton Wi-Fi obtenu avec ip addr show wlo1
 #après un changement de Wi-Fi, il faut généralement
@@ -55,6 +57,10 @@ ALLOWED_HOSTS = [
 #3. Modifier ALLOWED_HOSTS dans Django si nécessaire
 #4. Redémarrer Django si nécessaire
 
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+]
 
 # Application definition
 
@@ -70,6 +76,7 @@ INSTALLED_APPS = [
     "flotte",
     "operations",
     "geolocalisation",
+    "corsheaders",
 ]
 
 REST_FRAMEWORK = {
@@ -94,6 +101,7 @@ SIMPLE_JWT = {
 AUTH_USER_MODEL = "comptes.CustomUser"
 
 MIDDLEWARE = [
+    "corsheaders.middleware.CorsMiddleware",
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -178,3 +186,6 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"

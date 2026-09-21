@@ -41,6 +41,7 @@ class CustomUser(AbstractUser):
     email = models.EmailField(unique=True)
     telephone = models.CharField(max_length=20, blank=True)
     photo = models.ImageField(upload_to="photos_profil/", blank=True, null=True)
+    adresse = models.CharField(max_length=255,blank=True)
     role = models.CharField(max_length=20, choices=Role.choices)
 
     #Le champ utilisé pour identifier l'utilisateur est email
@@ -81,6 +82,10 @@ class Agent(models.Model):
         Responsable, on_delete=models.CASCADE, related_name="agents"
     )
     disponible = models.BooleanField(default=True)
+
+    numero_permis = models.CharField(max_length=100, blank=True, null=True)
+
+    categorie_permis = models.CharField(max_length=20, blank=True, null=True)
 
     def __str__(self):
         return self.utilisateur.email

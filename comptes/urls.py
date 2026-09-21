@@ -1,8 +1,9 @@
 # comptes/urls.py
 from django.urls import path
 from rest_framework_simplejwt.views import TokenRefreshView
-from .views import CustomTokenObtainPairView, ProfilView, ResponsableViewSet
+from .views import CustomTokenObtainPairView, ProfilView, ResponsableViewSet,ChangePasswordView
 from rest_framework.routers import DefaultRouter
+from . import views
 
 #routeur qui va gérer automatiquement les routes de mes ViewSets
 router = DefaultRouter()
@@ -14,6 +15,8 @@ urlpatterns = [
     path("connexion/", CustomTokenObtainPairView.as_view(), name="token_obtain_pair"),
     path("connexion/rafraichir/", TokenRefreshView.as_view(), name="token_refresh"),
     path("profil/", ProfilView.as_view(), name="profil"),
+    path( "responsables/par-email/", views.responsable_par_email, name="responsable-par-email", ),
+    path("mot-de-passe/", ChangePasswordView.as_view(), name="changer-mot-de-passe"),
 ]
 #Ajouter à ma liste de routes toutes les routes créées automatiquement par le router.
 urlpatterns += router.urls
