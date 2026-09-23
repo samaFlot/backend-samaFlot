@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from flotte.models import Vehicule
+from operations.models import Mission
 from .models import DernierePosition
 
 
@@ -64,9 +65,12 @@ class VehiculePositionSerializer(serializers.ModelSerializer):
     # un accès direct planterait si le véhicule n'a AUCUNE position encore envoyée 
     # la méthode personnalisée permet de gérer ce cas proprement
 
+    agent = serializers.SerializerMethodField()
+    mission = serializers.SerializerMethodField()
+
     class Meta:
         model = Vehicule
-        fields = ["id", "immatriculation", "statut", "latitude", "longitude", "date_envoi"]
+        fields = ["id", "immatriculation", "statut", "latitude", "longitude", "date_envoi", "agent","mission"]
 
     def get_latitude(self, obj):
         # get_<nom_du_champ> : DRF appelle cette méthode pour CHAQUE véhicule (obj) de la liste, 
@@ -80,3 +84,30 @@ class VehiculePositionSerializer(serializers.ModelSerializer):
 
     def get_date_envoi(self, obj):
         return obj.derniere_position.date_envoi if hasattr(obj, "derniere_position") else None
+
+    def get_agent(self, obj):
+        mission = obj.missions.filter(
+            statut=Mission.Statut.EN_COURS
+        ).first()
+
+        if not mission or not mission.agent:
+            return None
+
+        return {
+            "id": mission.agent.id,
+            "nom": f"{mission.agent.utilisateur.first_name} {mission.agent.utilisateur.last_name}",
+        }
+
+    def get_mission(self, obj):
+        mission = obj.missions.filter(
+            statut=Mission.Statut.EN_COURS
+        ).first()
+
+        if not mission:
+            return None
+
+        return {
+            "id": mission.id,
+            "depart": mission.demande_chargement.point_depart,
+            "destination": mission.demande_chargement.destination,
+        }

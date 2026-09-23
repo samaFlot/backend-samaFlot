@@ -14,6 +14,7 @@ from flotte.models import Vehicule
 from .models import DemandeChargement, Mission
 from flotte.serializers import AgentListSerializer
 from flotte.serializers import VehiculeSerializer
+from notifications.models import Notification
 from .serializers import (
     DemandeChargementListSerializer, DemandeChargementCreateSerializer, DemandeChargementDetailSerializer,
     MissionListSerializer, MissionDetailSerializer, MissionCreateSerializer,
@@ -353,6 +354,18 @@ class MissionViewSet(viewsets.ModelViewSet):
         mission.agent.disponible = False
         mission.agent.save()
 
+        Notification.objects.create(
+            responsable=mission.demande_chargement.responsable,
+            type=Notification.Type.MISSION_DEMARREE,
+            titre="Mission démarrée",
+            message=(
+                 f"L'agent {mission.agent.utilisateur.first_name} "
+                f"{mission.agent.utilisateur.last_name} a démarré "
+                f"la mission #{mission.id}."
+            ),
+            mission=mission,
+        )
+
         return Response(MissionDetailSerializer(mission).data)
 
     @action(detail=True, methods=["post"])
@@ -385,6 +398,19 @@ class MissionViewSet(viewsets.ModelViewSet):
         mission.demande_chargement.verifier_completion()
         # Revérifié à CHAQUE fin de mission : c'est peut-être la dernière attendue,
         # auquel cas la demande liée passe automatiquement à "Traité"
+
+
+        Notification.objects.create(
+            responsable=mission.demande_chargement.responsable,
+            type=Notification.Type.MISSION_TERMINEE,
+            titre="Mission terminée",
+            message=(
+                f"L'agent {mission.agent.utilisateur.first_name} "
+                f"{mission.agent.utilisateur.last_name} a terminé "
+                f"la mission #{mission.id}."
+            ),
+            mission=mission,
+        )
 
         return Response(MissionDetailSerializer(mission).data)
 
