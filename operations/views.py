@@ -359,8 +359,8 @@ class MissionViewSet(viewsets.ModelViewSet):
             type=Notification.Type.MISSION_DEMARREE,
             titre="Mission démarrée",
             message=(
-                 f"L'agent {mission.agent.utilisateur.prenom} "
-                f"{mission.agent.utilisateur.nom} a démarré "
+                 f"L'agent {mission.agent.utilisateur.first_name} "
+                f"{mission.agent.utilisateur.last_name} a démarré "
                 f"la mission #{mission.id}."
             ),
             mission=mission,
@@ -405,8 +405,8 @@ class MissionViewSet(viewsets.ModelViewSet):
             type=Notification.Type.MISSION_TERMINEE,
             titre="Mission terminée",
             message=(
-                f"L'agent {mission.agent.utilisateur.prenom} "
-                f"{mission.agent.utilisateur.nom} a terminé "
+                f"L'agent {mission.agent.utilisateur.first_name} "
+                f"{mission.agent.utilisateur.last_name} a terminé "
                 f"la mission #{mission.id}."
             ),
             mission=mission,
