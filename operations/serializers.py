@@ -39,10 +39,11 @@ class MissionResumeSerializer(serializers.ModelSerializer):
     # pour renvoyer un JSON plat côté frontend plutôt qu'un objet imbriqué
     agent_nom = serializers.CharField(source="agent.utilisateur.last_name")
     agent_prenom = serializers.CharField(source="agent.utilisateur.first_name")
+    agent_photo = serializers.ImageField(source="agent.utilisateur.photo")
 
     class Meta:
         model = Mission
-        fields = ["id", "statut", "vehicule_immatriculation", "agent_nom", "agent_prenom"]
+        fields = ["id", "statut", "vehicule_immatriculation", "agent_nom", "agent_prenom", "agent_photo"]
 
 
 class DemandeChargementDetailSerializer(DemandeChargementListSerializer):
@@ -77,11 +78,12 @@ class MissionListSerializer(serializers.ModelSerializer):
     vehicule_immatriculation = serializers.CharField(source="vehicule.immatriculation")
     agent_nom = serializers.CharField(source="agent.utilisateur.last_name")
     agent_prenom = serializers.CharField(source="agent.utilisateur.first_name")
+    agent_photo = serializers.ImageField(source="agent.utilisateur.photo")
 
     class Meta:
         model = Mission
         fields = ["id", "demandeur", "point_depart", "destination", "date_chargement",
-                  "heure_chargement","date_fin_prevue", "vehicule_immatriculation", "agent_nom", "agent_prenom", "statut"]
+                  "heure_chargement","date_fin_prevue", "vehicule_immatriculation", "agent_nom", "agent_prenom", "statut","agent_photo"]
 
 
 class MissionDetailSerializer(serializers.ModelSerializer):
