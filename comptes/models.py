@@ -1,6 +1,7 @@
 # comptes/models.py
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.db import models
+from django.utils import timezone
 
 #BaseUserManager est une classe Django qui permet de définir comment nos utilisateurs sont créés.
 class CustomUserManager(BaseUserManager):
@@ -86,6 +87,14 @@ class Agent(models.Model):
     numero_permis = models.CharField(max_length=100, blank=True, null=True)
 
     categorie_permis = models.CharField(max_length=20, blank=True, null=True)
+    date_expiration_permis = models.DateField(blank=True, null=True)
+
+    @property
+    def permis_valide(self):
+        if not self.date_expiration_permis:
+            return False
+
+        return self.date_expiration_permis >= timezone.localdate()
 
     def __str__(self):
         return self.utilisateur.email

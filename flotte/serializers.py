@@ -2,6 +2,10 @@
 from rest_framework import serializers
 from comptes.models import Agent, CustomUser
 from .models import Vehicule
+from operations.models import Mission
+from documents.models import DocumentVehicule
+from geolocalisation.models import DernierePosition
+from signalements.models import Signalement
 from comptes.utils import generer_mot_de_passe, envoyer_identifiants
 
 
@@ -11,8 +15,8 @@ from comptes.utils import generer_mot_de_passe, envoyer_identifiants
 class VehiculeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Vehicule
-        fields = ["id", "immatriculation", "type_vehicule", "poids", "hauteur", "largeur",
-                  "statut", "date_creation"]
+        fields = ["id", "immatriculation", "type_vehicule", "poids", "hauteur", "largeur", "kilometrage",
+                  "statut", "etat_technique", "date_creation"]
 
 # valide les données lors de la creation d'un vehicule
 class VehiculeCreateSerializer(serializers.ModelSerializer):
@@ -45,6 +49,120 @@ class VehiculeUpdateSerializer(serializers.ModelSerializer):
         return value
 
 
+class DocumentVehiculeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DocumentVehicule
+        fields = [
+            "id",
+            "type_document",
+            "numero_document",
+            "date_emission",
+            "date_expiration",
+            "fichier",
+            "statut",
+        ]
+
+
+class DernierePositionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DernierePosition
+        fields = [
+            "latitude",
+            "longitude",
+            "date_envoi",
+        ]
+
+
+class AgentSignalementSerializer(serializers.ModelSerializer):
+    nom = serializers.CharField(source="utilisateur.last_name")
+    prenom = serializers.CharField(source="utilisateur.first_name")
+    photo = serializers.ImageField(source="utilisateur.photo", read_only=True)
+    telephone = serializers.CharField(source="utilisateur.telephone")
+
+    class Meta:
+        model = Agent
+        fields = [
+            "id",
+            "nom",
+            "prenom",
+            "photo",
+            "telephone",
+            "disponible",
+        ]
+
+
+class MissionSignalementSerializer(serializers.ModelSerializer):
+    agent = AgentSignalementSerializer(read_only=True)
+    date_fin_prevue = serializers.DateTimeField(
+        source="demande_chargement.date_fin_prevue",
+        read_only=True
+    )
+
+    class Meta:
+        model = Mission
+        fields = [
+            "id",
+            "statut",
+            "date_fin_prevue",
+            "agent",
+        ]
+
+
+class SignalementVehiculeSerializer(serializers.ModelSerializer):
+    mission = MissionSignalementSerializer(read_only=True)
+
+    class Meta:
+        model = Signalement
+        fields = [
+            "id",
+            "type_probleme",
+            "description",
+            "photo",
+            "statut",
+            "date_creation",
+            "mission",
+        ]
+
+class VehiculeDetailSerializer(serializers.ModelSerializer):
+    documents = DocumentVehiculeSerializer(
+        many=True,
+        read_only=True
+    )
+
+    derniere_position = DernierePositionSerializer(
+        read_only=True
+    )
+
+    signalements = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Vehicule
+        fields = [
+            "id",
+            "immatriculation",
+            "type_vehicule",
+            "poids",
+            "hauteur",
+            "largeur",
+            "kilometrage",
+            "statut",
+            "etat_technique",
+            "date_creation",
+            "documents",
+            "derniere_position",
+            "signalements",
+        ]
+
+    def get_signalements(self, obj):
+        signalements = Signalement.objects.filter(
+            mission__vehicule=obj
+        ).order_by("-date_creation")
+
+        return SignalementVehiculeSerializer(
+            signalements,
+            many=True
+        ).data
+
 # --- Agents ---
 
 #transformer un objet Agent en données JSON
@@ -56,11 +174,15 @@ class AgentListSerializer(serializers.ModelSerializer):
     telephone = serializers.CharField(source="utilisateur.telephone")
     adresse = serializers.CharField(source="utilisateur.adresse")
     photo = serializers.ImageField(source="utilisateur.photo", read_only=True)
+    permis_valide = serializers.SerializerMethodField()
+
+    def get_permis_valide(self, obj):
+        return obj.permis_valide
 
     class Meta:
         model = Agent
         #Quand j'affiche un Agent, je veux envoyer uniquement ces informations
-        fields = ["id", "nom", "prenom", "email", "telephone","adresse", "photo", "disponible","numero_permis","categorie_permis"]
+        fields = ["id", "nom", "prenom", "email", "telephone","adresse", "photo", "disponible","numero_permis","categorie_permis", "date_expiration_permis", "permis_valide",]
 
 
 class AgentCreateSerializer(serializers.Serializer):
@@ -77,6 +199,12 @@ class AgentCreateSerializer(serializers.Serializer):
         allow_blank=True,
         allow_null=True
     )
+
+    date_expiration_permis = serializers.DateField(
+        required=False,
+        allow_null=True
+    )
+
     nom = serializers.CharField(max_length=150)
     prenom = serializers.CharField(max_length=150)
     telephone = serializers.CharField(max_length=20)
@@ -120,7 +248,8 @@ class AgentCreateSerializer(serializers.Serializer):
             responsable=responsable,
             numero_permis=validated_data.get("numero_permis"),
             categorie_permis=validated_data.get("categorie_permis"),
-            )
+            date_expiration_permis=validated_data.get("date_expiration_permis"),
+        )
 
         envoyer_identifiants(user.email, validated_data["prenom"], mot_de_passe)
         return agent
@@ -140,6 +269,12 @@ class AgentUpdateSerializer(serializers.Serializer):
         allow_blank=True,
         allow_null=True
     )
+
+    date_expiration_permis = serializers.DateField(
+        required=False,
+        allow_null=True
+    )
+
     nom = serializers.CharField(max_length=150, required=False)
     prenom = serializers.CharField(max_length=150, required=False)
     telephone = serializers.CharField(max_length=20, required=False)
@@ -179,6 +314,7 @@ class AgentUpdateSerializer(serializers.Serializer):
         for champ in [
             "numero_permis",
             "categorie_permis",
+            "date_expiration_permis",
         ]:
             if champ in validated_data:
                 # Modifie le champ correspondant de l'Agent.

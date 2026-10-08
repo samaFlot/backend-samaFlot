@@ -15,6 +15,7 @@ class DemandeChargement(models.Model):
     nombre_vehicules_demandes = models.PositiveIntegerField()
     date_chargement = models.DateField()
     heure_chargement = models.TimeField()
+    date_fin_prevue = models.DateTimeField()
     point_depart = models.CharField(max_length=255)
     destination = models.CharField(max_length=255)
     description = models.TextField(blank=True)
@@ -57,12 +58,29 @@ class Mission(models.Model):
         ANNULEE = "ANNULEE", "Annulée"
 
     demande_chargement = models.ForeignKey(
-        DemandeChargement, on_delete=models.CASCADE, related_name="missions"
+        DemandeChargement,
+        on_delete=models.CASCADE,
+        related_name="missions"
     )
-    vehicule = models.ForeignKey(Vehicule, on_delete=models.PROTECT, related_name="missions",null=True,blank=True)
-    agent = models.ForeignKey(Agent, on_delete=models.PROTECT, related_name="missions",null=True,blank=True)
-    statut = models.CharField(max_length=20, choices=Statut.choices, default=Statut.PREVU)
-    date_fin_prevue = models.DateTimeField()
+    vehicule = models.ForeignKey(
+        Vehicule,
+        on_delete=models.PROTECT,
+        related_name="missions",
+        null=True,
+        blank=True
+    )
+    agent = models.ForeignKey(
+        Agent,
+        on_delete=models.PROTECT,
+        related_name="missions",
+        null=True,
+        blank=True
+    )
+    statut = models.CharField(
+        max_length=20,
+        choices=Statut.choices,
+        default=Statut.PREVU
+    )
     date_creation = models.DateTimeField(auto_now_add=True)
     date_debut = models.DateTimeField(null=True, blank=True)
     date_terminee = models.DateTimeField(null=True, blank=True)
@@ -70,9 +88,10 @@ class Mission(models.Model):
 
     @property
     def date_debut_prevue(self):
-        """Combine la date/heure de chargement de la demande liée en un seul datetime."""
+        """Combine la date et l'heure de chargement de la demande."""
         import datetime
         from django.utils import timezone
+
         return timezone.make_aware(
             datetime.datetime.combine(
                 self.demande_chargement.date_chargement,
@@ -81,8 +100,11 @@ class Mission(models.Model):
         )
 
     def chevauche(self, autre_debut, autre_fin):
-        """vérifie si la période de cette mission chevauche une autre période et retourne true si c'est le cas."""
-        return self.date_debut_prevue < autre_fin and self.date_fin_prevue > autre_debut
+        """Vérifie si la période de cette mission chevauche une autre période."""
+        return (
+            self.date_debut_prevue < autre_fin
+            and self.demande_chargement.date_fin_prevue > autre_debut
+        )
 
     def __str__(self):
         return f"Mission #{self.id} — {self.vehicule.immatriculation}"

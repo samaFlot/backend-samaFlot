@@ -1,12 +1,14 @@
 from django.db import models
 from comptes.models import Responsable
 from operations.models import Mission
+from signalements.models import Signalement
 
 
 class Notification(models.Model):
     class Type(models.TextChoices):
         MISSION_DEMARREE = "MISSION_DEMARREE", "Mission démarrée"
         MISSION_TERMINEE = "MISSION_TERMINEE", "Mission terminée"
+        SIGNALEMENT_CREE = "SIGNALEMENT_CREE", "Nouveau signalement"
 
     responsable = models.ForeignKey(
         Responsable,
@@ -25,6 +27,14 @@ class Notification(models.Model):
 
     mission = models.ForeignKey(
         Mission,
+        on_delete=models.CASCADE,
+        related_name="notifications",
+        null=True,
+        blank=True
+    )
+
+    signalement = models.ForeignKey(
+        Signalement,
         on_delete=models.CASCADE,
         related_name="notifications",
         null=True,
