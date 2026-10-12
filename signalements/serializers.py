@@ -74,9 +74,9 @@ class SignalementSerializer(serializers.ModelSerializer):
                 "Vous ne pouvez pas créer un signalement pour cette mission."
             )
 
-        if mission.statut != mission.Statut.EN_COURS:
-            raise serializers.ValidationError(
-                "Un signalement peut uniquement être créé pendant une mission en cours."
-            )
+        #if mission.statut != mission.Statut.EN_COURS:
+           # raise serializers.ValidationError(
+                #"Un signalement peut uniquement être créé pendant une mission en cours."
+            #)
 
         return mission

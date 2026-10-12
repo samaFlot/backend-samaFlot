@@ -1,4 +1,5 @@
 import datetime
+from django.db import transaction
 import os
 import hmac
 from comptes.models import Responsable
@@ -445,49 +446,128 @@ class MissionViewSet(viewsets.ModelViewSet):
     def terminer(self, request, pk=None):
         mission = self.get_object()
 
-        if mission.agent.utilisateur_id != request.user.id:
+        # 1. Vérifier que l'agent connecté possède cette mission.
+        if (
+            not mission.agent
+            or mission.agent.utilisateur_id != request.user.id
+        ):
             return Response(
-                {"detail": "Vous ne pouvez terminer que vos propres missions."},
+                {
+                    "detail": "Vous ne pouvez terminer que vos propres missions."
+                },
                 status=status.HTTP_403_FORBIDDEN,
             )
 
+        # 2. Vérifier que la mission est en cours.
         if mission.statut != Mission.Statut.EN_COURS:
-            # On ne peut terminer qu'une mission réellement en cours —
-            # pas une PREVU (jamais démarrée) ni une déjà TERMINEE/ANNULEE
             return Response(
                 {"detail": "Cette mission n'est pas en cours."},
-                status=status.HTTP_400_BAD_REQUEST
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
-        mission.statut = Mission.Statut.TERMINEE
-        mission.date_terminee = timezone.now()
-        mission.save()
+        # 3. Vérifier que le véhicule existe.
+        if not mission.vehicule:
+            return Response(
+                {
+                    "detail": "Aucun véhicule n'est associé à cette mission."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
-        # Ici on libère VRAIMENT les ressources, puisqu'elles avaient été réservées
-        # au moment du démarrage
-        mission.vehicule.statut = Vehicule.Statut.DISPONIBLE
-        mission.vehicule.save()
+        # 4. Récupérer le kilométrage envoyé par l'application mobile.
+        kilometrage = request.data.get("kilometrage")
 
-        mission.agent.disponible = True
-        mission.agent.save()
+        if kilometrage is None or kilometrage == "":
+            return Response(
+                {
+                    "detail": "Le kilométrage à l'arrivée est obligatoire."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
-        mission.demande_chargement.verifier_completion()
-        # Revérifié à CHAQUE fin de mission : c'est peut-être la dernière attendue,
-        # auquel cas la demande liée passe automatiquement à "Traité"
+        # 5. Vérifier que le kilométrage est un entier valide.
+        # Accepte un entier JSON ou une chaîne contenant uniquement des chiffres.
+        if isinstance(kilometrage, bool) or not (
+            isinstance(kilometrage, int)
+            or (
+                isinstance(kilometrage, str)
+                and kilometrage.strip().isdigit()
+            )
+        ):
+            return Response(
+                {
+                    "detail": "Le kilométrage doit être un entier positif ou nul."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
-        Notification.objects.create(
-            responsable=mission.demande_chargement.responsable,
-            type=Notification.Type.MISSION_TERMINEE,
-            titre="Mission terminée",
-            message=(
-                f"L'agent {mission.agent.utilisateur.first_name} "
-                f"{mission.agent.utilisateur.last_name} a terminé "
-                f"la mission #{mission.id}."
-            ),
-            mission=mission,
+        kilometrage = int(kilometrage)
+
+        # 6. Vérifier que le kilométrage n'est pas négatif.
+        if kilometrage < 0:
+            return Response(
+                {
+                    "detail": "Le kilométrage ne peut pas être négatif."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # 7. Comparer avec le dernier kilométrage du véhicule.
+        ancien_kilometrage = mission.vehicule.kilometrage
+
+        if (
+            ancien_kilometrage is not None
+            and kilometrage < ancien_kilometrage
+        ):
+            return Response(
+                {
+                    "detail": (
+                        f"Le kilométrage saisi ({kilometrage} km) est inférieur "
+                        f"au dernier kilométrage enregistré "
+                        f"({ancien_kilometrage} km)."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # 8. Enregistrer toutes les modifications dans une transaction.
+        with transaction.atomic():
+
+            # Mettre à jour le véhicule.
+            mission.vehicule.kilometrage = kilometrage
+            mission.vehicule.statut = Vehicule.Statut.DISPONIBLE
+            mission.vehicule.save()
+
+            # Terminer la mission.
+            mission.statut = Mission.Statut.TERMINEE
+            mission.date_terminee = timezone.now()
+            mission.save()
+
+            # Libérer l'agent.
+            mission.agent.disponible = True
+            mission.agent.save()
+
+            # Vérifier si toutes les missions de la demande sont terminées.
+            mission.demande_chargement.verifier_completion()
+
+            # Notifier le responsable.
+            Notification.objects.create(
+                responsable=mission.demande_chargement.responsable,
+                type=Notification.Type.MISSION_TERMINEE,
+                titre="Mission terminée",
+                message=(
+                    f"L'agent {mission.agent.utilisateur.first_name} "
+                    f"{mission.agent.utilisateur.last_name} a terminé "
+                    f"la mission #{mission.id}."
+                ),
+                mission=mission,
+            )
+
+        # 9. Retourner la mission mise à jour.
+        return Response(
+            MissionDetailSerializer(mission).data,
+            status=status.HTTP_200_OK,
         )
-
-        return Response(MissionDetailSerializer(mission).data)
 
     @action(detail=True, methods=["post"])
     def annuler(self, request, pk=None):
