@@ -50,6 +50,7 @@ ALLOWED_HOSTS = [
     #permet a n8n de pouvoir appeler django
     "host.docker.internal",
     "192.168.1.121",
+    "192.168.1.147",
 ]
 #l'adresse IP locale actuelle de ton PC sur ton Wi-Fi obtenu avec ip addr show wlo1
 #après un changement de Wi-Fi, il faut généralement
