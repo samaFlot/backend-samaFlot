@@ -9,6 +9,10 @@ class Vehicule(models.Model):
         EN_MISSION = "EN_MISSION", "En mission"
         EN_PANNE = "EN_PANNE", "En panne"
 
+    class EtatTechnique(models.TextChoices):
+        BON_ETAT = "BON_ETAT", "Bon état"
+        A_VERIFIER = "A_VERIFIER", "À vérifier"
+
     responsable = models.ForeignKey(Responsable, on_delete=models.CASCADE, related_name="vehicules")
     immatriculation = models.CharField(max_length=20, unique=True)
     type_vehicule = models.CharField(max_length=100)
@@ -16,9 +20,12 @@ class Vehicule(models.Model):
     #ex: Quand quelqu'un utilise ce champ, affiche-lui l'indication en kg
     poids = models.DecimalField(max_digits=8, decimal_places=2, help_text="en kg")
     hauteur = models.DecimalField(max_digits=5, decimal_places=2, help_text="en m")
+    kilometrage = models.PositiveIntegerField(null=True,blank=True)
     largeur = models.DecimalField(max_digits=5, decimal_places=2, help_text="en m")
     statut = models.CharField(max_length=20, choices=Statut.choices, default=Statut.DISPONIBLE)
+    etat_technique = models.CharField(max_length=20,choices=EtatTechnique.choices,default=EtatTechnique.BON_ETAT)
     date_creation = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return self.immatriculation
+

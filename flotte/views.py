@@ -7,9 +7,10 @@ from comptes.models import Agent
 from comptes.utils import generer_mot_de_passe, envoyer_identifiants
 from .models import Vehicule
 from .serializers import (
-    VehiculeSerializer, VehiculeCreateSerializer, VehiculeUpdateSerializer,
+    VehiculeSerializer, VehiculeCreateSerializer, VehiculeUpdateSerializer, VehiculeDetailSerializer,
     AgentListSerializer, AgentCreateSerializer, AgentUpdateSerializer,
 )
+from signalements.models import Signalement
 
 
 class VehiculeViewSet(viewsets.ModelViewSet):
@@ -35,6 +36,8 @@ class VehiculeViewSet(viewsets.ModelViewSet):
         return qs
 
     def get_serializer_class(self):
+        if self.action == "retrieve":
+            return VehiculeDetailSerializer
         if self.action == "create":
             return VehiculeCreateSerializer
         elif self.action in ["update", "partial_update"]:
@@ -55,6 +58,70 @@ class VehiculeViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(VehiculeSerializer(serializer.instance).data)
+
+    @action(detail=True, methods=["post"], url_path="bon-etat")
+    def bon_etat(self, request, pk=None):
+        vehicule = self.get_object()
+
+        # Le véhicule doit être à vérifier
+        if vehicule.etat_technique != Vehicule.EtatTechnique.A_VERIFIER:
+            return Response(
+                {
+                    "detail": "Le véhicule doit être à vérifier avant de pouvoir être remis en bon état."
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Récupérer l'identifiant du signalement
+        signalement_id = request.data.get("signalement_id")
+
+        if not signalement_id:
+            return Response(
+                {"detail": "Le signalement_id est obligatoire."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Récupérer le signalement
+        try:
+            signalement = Signalement.objects.get(id=signalement_id)
+        except Signalement.DoesNotExist:
+            return Response(
+                {"detail": "Signalement introuvable."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Vérifier que le signalement concerne bien ce véhicule
+        if signalement.mission.vehicule != vehicule:
+            return Response(
+                {
+                    "detail": "Ce signalement ne concerne pas ce véhicule."
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Le signalement doit encore être à traiter
+        if signalement.statut != Signalement.Statut.A_TRAITER:
+            return Response(
+                {
+                    "detail": "Ce signalement n'est plus à traiter."
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Remettre le véhicule en bon état
+        vehicule.etat_technique = Vehicule.EtatTechnique.BON_ETAT
+        vehicule.save()
+
+        # Marquer le signalement comme traité
+        signalement.statut = Signalement.Statut.TRAITE
+        signalement.save()
+
+        return Response(
+            {
+                "detail": "Le véhicule est maintenant en bon état et le signalement a été traité."
+            },
+            status=status.HTTP_200_OK
+        )
 
 
 class AgentViewSet(viewsets.ModelViewSet):

@@ -49,6 +49,8 @@ ALLOWED_HOSTS = [
     '192.168.1.16',
     #permet a n8n de pouvoir appeler django
     "host.docker.internal",
+    "192.168.1.121",
+    "192.168.1.147",
 ]
 #l'adresse IP locale actuelle de ton PC sur ton Wi-Fi obtenu avec ip addr show wlo1
 #après un changement de Wi-Fi, il faut généralement
@@ -79,6 +81,8 @@ INSTALLED_APPS = [
     "corsheaders",
     "contact",
     "notifications",
+    "documents",
+    "signalements",
 ]
 
 REST_FRAMEWORK = {

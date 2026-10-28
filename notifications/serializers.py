@@ -11,6 +11,7 @@ class NotificationSerializer(serializers.ModelSerializer):
             "titre",
             "message",
             "mission",
+            "signalement",
             "lu",
             "date_creation",
         ]

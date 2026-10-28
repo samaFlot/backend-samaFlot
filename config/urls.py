@@ -27,6 +27,8 @@ urlpatterns = [
     path("api/geolocalisation/", include("geolocalisation.urls")),
     path("api/contact/", include("contact.urls")),
     path("api/notifications/", include("notifications.urls")),
+    path("api/documents/",include("documents.urls")),
+    path("api/signalements/", include("signalements.urls")),
 ]
 
 #permet à Django de servir les images pendant le développement
