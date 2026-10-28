@@ -11,6 +11,20 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+import os
+from datetime import timedelta
+from dotenv import load_dotenv
+from decouple import config
+
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = "smtp.gmail.com"
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = config("EMAIL_HOST_USER")
+EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD")
+DEFAULT_FROM_EMAIL = f"SamaFlot <{EMAIL_HOST_USER}>"
+
+load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -25,8 +39,30 @@ SECRET_KEY = 'django-insecure-v(5v%8o755+e_36^+=$84z$@(mxr()zy01t-6z(2*o2q03ac(#
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+#ALLOWED_HOSTS indique à Django quels noms d’hôte/adresses il accepte dans les requêtes HTTP
+ALLOWED_HOSTS = [
+    #permet à ton propre ordinateur d'accéder à Django
+    '127.0.0.1',
+    'localhost',
+    #permet aux autres appareils de ton réseau local(ensemble d’appareils connectés au même réseau, généralement le même Wi-Fi ou le même routeur), notamment ton téléphone, d'accéder à Django
+    '192.168.1.180',
+    '192.168.1.16',
+    #permet a n8n de pouvoir appeler django
+    "host.docker.internal",
+    "192.168.1.121",
+    "192.168.1.147",
+]
+#l'adresse IP locale actuelle de ton PC sur ton Wi-Fi obtenu avec ip addr show wlo1
+#après un changement de Wi-Fi, il faut généralement
+#1. Vérifier la nouvelle IP du PC
+#2. Modifier l'URL de l'API dans React Native
+#3. Modifier ALLOWED_HOSTS dans Django si nécessaire
+#4. Redémarrer Django si nécessaire
 
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+]
 
 # Application definition
 
@@ -37,9 +73,41 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    "rest_framework",
+    'comptes',
+    "flotte",
+    "operations",
+    "geolocalisation",
+    "corsheaders",
+    "contact",
+    "notifications",
+    "documents",
+    "signalements",
 ]
 
+REST_FRAMEWORK = {
+    #Quand une requête arrive avec un JWT, django utilise ce JWT pour déterminer qui est l'utilisateur
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ),
+    #Par défaut, seules les personnes authentifiées peuvent accéder aux API.
+    "DEFAULT_PERMISSION_CLASSES": (
+        "rest_framework.permissions.IsAuthenticated",
+    ),
+}
+#SimpleJWT est une bibliothèque qui s'intègre à DRF pour gérer l'authentification avec des tokens JWT.
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(hours=8),   # durée d'une session active
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=30),  # le refresh token peut être utilisé pour renouveler l'accès pendant sa durée de validité.
+    "ROTATE_REFRESH_TOKENS": True,
+}
+
+#Django utilise par défaut son propre modèle utilisateur et nous avons décidé de créer notre propre modèle
+#Donc on dt a django qu'À partir de maintenant, le modèle utilisateur de notre projet est CustomUser situé dans l'application comptes
+AUTH_USER_MODEL = "comptes.CustomUser"
+
 MIDDLEWARE = [
+    "corsheaders.middleware.CorsMiddleware",
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -73,9 +141,13 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+    "default": {
+        "ENGINE": "django.db.backends.mysql",
+        "NAME": os.getenv("DB_NAME"),
+        "USER": os.getenv("DB_USER"),
+        "PASSWORD": os.getenv("DB_PASSWORD"),
+        "HOST": os.getenv("DB_HOST"),
+        "PORT": os.getenv("DB_PORT"),
     }
 }
 
@@ -120,3 +192,6 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
